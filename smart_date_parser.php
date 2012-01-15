@@ -8,88 +8,89 @@
  * @see http://www.php.net/manual/en/datetime.formats.relative.php
  */
 function smart_date_parse($full_str) {
-  //TODO set to user's timezone
-  date_default_timezone_set('America/New_York');
-
-  $default_look_forward = TRUE; //TODO make use of this
-
-  // If a date is matched and it is preceded by these words, the prefix word will be removed
-  // from the output string (as it's part of the date match)
-  $prefix_exclude = array('at', 'by', 'on');
   $date_valword_exclude = array('a', 'i', 'eat');
-  $prefix_modifiers = array('next', 'last');
   $time_units = array('year', 'years', 'month', 'months', 'forthnight', 'forthnights', 'fortnight', 'fortnights', 'week', 'weeks', 'day', 'days', 'hour', 'hours', 'minute', 'minutes', 'min', 'mins', 'second', 'seconds', 'sec', 'secs');
 
-  // Remove spaces to create single-words that strtotime can handle (e.g., "8:30 pm" => "8:30pm")
-  // This will save having to look ahead and behind any matching words in some cases
-  $full_str = preg_replace('/(\d{1,2}:?\d{0,2}) ([ap]m)/i', '$1$2', $full_str);
+  // These replacements will save having to look ahead and behind any matching words in some cases
   $full_str = str_replace('in a few', 'in 2', $full_str);
-  $full_str = str_replace('in a couple of', 'in 3', $full_str);
-  $full_str = str_replace('in a couple', 'in 3', $full_str);
+  $full_str = preg_replace('/in a couple( of)?/i', 'in 3', $full_str);
+  // Remove spaces to create single-words that strtotime can handle (e.g., "8:30 pm" => "8:30pm")
+  $full_str = preg_replace('/(\d{1,2}:?\d{0,2}) ([ap]m)/i', '$1$2', $full_str);
 
-  $parse_array = explode(" ", $full_str);
-  $date_val = '';
-  $remove_from_text = '';
-  $text_arr = array();
+  $parse_array = explode(' ', $full_str);
   $word_count = count($parse_array);
-
+  $words = array();
   for ($i = 0; $i < $word_count; $i++) {
-    // Finally, add the actual date field
-    if (!in_array(strtolower($parse_array[$i]), $date_valword_exclude)) {
-      if (strtotime($parse_array[$i]) > 0 || in_array(strtolower($parse_array[$i]), $time_units)) {
-        // If date word is preceded by a modifier, add this to the date
-        // Examples: "next monday", "last friday"
-        if (in_array(strtolower($parse_array[$i-1]), $prefix_modifiers)) {
-          $remove_from_text = "{$parse_array[$i-1]} {$parse_array[$i]}";
-          $date_val = "{$parse_array[$i-1]} {$parse_array[$i]}";
-        }
+    if ((strtotime($parse_array[$i]) > 0 || in_array(strtolower($parse_array[$i]), $time_units)) && !in_array(strtolower($parse_array[$i]), $date_valword_exclude)) {
+	  $words[] = '!t_' . $parse_array[$i];
+	}
+	else {
+	  $words[] = $parse_array[$i];
+	}
+  }
 
-        // If date word is preceded by "in n" where n is a number, add this to the date
-        // This is similar to the time units check below, but will catch additional words
-        // Examples: "in 2 mondays", "in 3 fridays"
-        if (is_numeric($parse_array[$i-1])) {
-          if (strtolower($parse_array[$i-2]) == 'in') {
-            $remove_from_text = "{$parse_array[$i-2]} {$parse_array[$i-1]} {$parse_array[$i]}";
-            $date_val = "{$parse_array[$i-1]} {$parse_array[$i]}";
-          }
-        }
+  // Build the token string that we can work with
+  $token_str = implode(' ', $words);
 
-        // If a "should be removed" prefix is detected, set it to be removed
-        // from the final text string and exclude it from the date array
-        if (in_array(strtolower($parse_array[$i-1]), $prefix_exclude)) {
-          if ($remove_from_text != '') {
-            $remove_from_text = "{$parse_array[$i-1]} {$remove_from_text}";
-          }
-          else {
-            $remove_from_text = "{$parse_array[$i-1]} {$parse_array[$i]}";
-          }
-          $date_val = ($date_val != '') ? $date_val : $parse_array[$i];
-        }
+  // Convert "3 am" to "3am" and "3:30 pm" to "3:30pm"
+  $token_str = preg_replace('/(\d{1,2}:?\d{0,2}) ([ap]m)/i', '$1$2', $token_str);
 
-        // If we haven't set any text to be removed, we haven't had to match
-        // any modifiers, so just process the value as is
-        if ($remove_from_text == '') {
-          $remove_from_text = $parse_array[$i];
-          $date_val = $parse_array[$i];
-        }
-      }
+  // Handle on month + day
+  // e.g., "on !t_July 5" to "!t_July !t_5"
+  $months = 'january|february|march|april|may|june|july|august|september|october|november|december';
+  $months .= '|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec';
+  $token_str = preg_replace('/on !t_(' . $months . ') (.*)/i', '!t_$1 !t_$2', $token_str);
+
+  // Remove prefixes "Eat food at !t_3pm" to "Eat food !t_3pm"
+  $token_str = preg_replace('/(at|by|on|in) !t_/i', '!t_', $token_str);
+
+  // Remove "in" and make number a flagged string
+  // e.g., "in 10 !t_days" to "!t_10 !t_days"
+  $token_str = preg_replace('/in (\d*) !t_/i', '!t_$1 !t_', $token_str);
+
+  // Make modifier prefix a flagged string
+  // e.g., "next !t_week" to "!t_next !t_week"
+  $token_str = preg_replace('/(next|last|previous|this) !t_/i', '!t_$1 !t_', $token_str);
+
+  // Handle "X after X" (where X's are strtotime matches)
+  // e.g., "!t_day after !t_tomorrow" to "!t_tomorrow !t_+1 !t_day"
+  $token_str = preg_replace('/!t_(.*) after !t_(.*)/i', '!t_$2 !t_+1 !t_$1', $token_str);
+
+  // Handle "X before X" (where X's are strtotime matches)
+  // e.g., "!t_day before !t_tomorrow" to "!t_tomorrow !t_-1 !t_day"
+  $token_str = preg_replace('/!t_(.*) before !t_(.*)/i', '!t_$2 !t_-1 !t_$1', $token_str);
+
+  // Using arrays instead of appending to strings in case we need to do more with the values
+  $datetime_arr = array();
+  $text_arr = array();
+
+  // Build the two arrays (separating date from text)
+  foreach (explode(' ', $token_str) as $word) {
+    if (strpos($word, '!t_') === 0) {
+      $datetime_arr[] = substr($word, 3);
+    }
+    else {
+      $text_arr[] = $word;
     }
   }
 
-  // Build the results and return them
-  if ($date_val != '') {
-    $data['timestamp'] = strtotime($date_val);
-
-    $data['text_str'] = $full_str;
-    if ($remove_from_text != '') {
-      $data['text_str'] = str_replace($remove_from_text, '', $data['text_str']);
-      $data['text_str'] = rtrim(ucfirst($data['text_str']));
+  // Finalize the output that we will return
+  $data['text_str'] = rtrim(ucfirst(implode(' ', $text_arr)));
+  if ($datetime_arr[0]) {
+    $data['datetime_str'] = implode(' ', $datetime_arr);
+    $data['timestamp'] = strtotime($data['datetime_str']);
+    if ($data['timestamp'] <= 0) {
+      $data['timestamp'] = FALSE; // Date/time values present, but couldn't get valid timestamp
+      $data['error'] = TRUE; // Date/time values present, but couldn't get valid timestamp
     }
   }
   else {
-    // There weren't any dates, so return the string as it was passed
-    $data['text_str'] = $full_str;
+    $data['datetime_str'] = '';
+    $data['timestamp'] = 0;
   }
+
+  $data['orig_str'] = $full_str; // TODO TEMPORARY
+  $data['result_date'] = date('r', $data['timestamp']); // TODO TEMPORARY
 
   return $data;
 }
