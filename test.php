@@ -25,13 +25,15 @@ $test_strings = array(
 	'Eat food quickly',
 	'Eat food tomorrow at 9am',
 	'Eat food Friday at 9am',
-	'Eat food at 9am tomorrow',
 	'Eat food day after tomorrow',
 	'Eat food day before yesterday',
 	'Eat food on July 5',
+	'Eat food on July 5 at 10pm',
+	'Eat food on July 5 at 10pm with Suzy',
+	'Eat food at 10pm on July 5',
+	'Eat food at 9am tomorrow', //TODO (tomorrow 9am works)
 	'In 2 days, eat some food', //TODO
 	'Eat food friday after next', //TODO
-	'Eat food on July 5 at 10pm', //TODO
 );
 
 print 'Current date/time: ' . date('r') . "\r\n\r\n";
