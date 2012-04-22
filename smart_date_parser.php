@@ -25,11 +25,11 @@ function smart_date_parse($full_str) {
   $words = array();
   for ($i = 0; $i < $word_count; $i++) {
     if ((strtotime($parse_array[$i]) > 0 || in_array(strtolower($parse_array[$i]), $time_units)) && !in_array(strtolower($parse_array[$i]), $date_valword_exclude)) {
-	  $words[] = '!t_' . $parse_array[$i];
-	}
-	else {
-	  $words[] = $parse_array[$i];
-	}
+      $words[] = '!t_' . $parse_array[$i];
+    }
+    else {
+      $words[] = $parse_array[$i];
+    }
   }
 
   // Build the token string that we can work with
@@ -100,7 +100,6 @@ function smart_date_parse($full_str) {
     $data['timestamp'] = 0;
   }
 
-  $data['orig_str'] = $full_str; // TODO TEMPORARY
   $data['token_str'] = $token_str; // TODO TEMPORARY
   $data['result_date'] = date('r', $data['timestamp']); // TODO TEMPORARY
 
