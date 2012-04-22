@@ -12,6 +12,7 @@ function smart_date_parse($full_str) {
   $time_units = array('year', 'years', 'month', 'months', 'forthnight', 'forthnights', 'fortnight', 'fortnights', 'week', 'weeks', 'day', 'days', 'hour', 'hours', 'minute', 'minutes', 'min', 'mins', 'second', 'seconds', 'sec', 'secs');
   $months = 'january|february|march|april|may|june|july|august|september|october|november|december';
   $months .= '|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec';
+  $days = 'yesterday|tomorrow|monday|mon|tuesday|tue|wednesday|wed|thursday|thur|friday|fri|saturday|sat|sunday|sun';
 
   // These replacements will save having to look ahead and behind any matching words in some cases
   $full_str = str_replace('in a few', 'in 2', $full_str);
@@ -60,9 +61,15 @@ function smart_date_parse($full_str) {
   // e.g., "!t_day before !t_tomorrow" to "!t_tomorrow !t_-1 !t_day"
   $token_str = preg_replace('/(!t_[0-9A-Z]*) before (!t_[0-9A-Z]*)/i', '$2 !t_-1 $1', $token_str);
   
-  // Handle "July 5 5pm" (this is not strtotime-ready; it must be 5pm July 5)
+  // Handle "July 5 5pm" (this is not strtotime-ready; it must be "5pm July 5")
   // e.g., "!t_July $!t_5 !t_10am" to "!t_10am !t_July !t_5"
   $token_str = preg_replace('/!t_(' . $months . ') (!t_[0-9A-Z]*) (!t_[0-9A-Z:]*)/i', '$3 !t_$1 $2', $token_str);
+
+  // Handle "5pm tomorrow" and "5pm next Monday" (these are not strtotime-ready; they must be "next Monday 5pm")
+  // If this has "next|last|previous|this" then shift that word to the beginning
+  // e.g., "$!t_5pm !t_tomorrow" to "!t_tomorrow !t_5pm"
+  // e.g., "$!t_5pm !t_next !t_Monday" to "!t_next !t_Monday !t_5pm"
+  $token_str = preg_replace('/(!t_\d{1,2}:?\d{0,2}[ap]m) ((!t_next|last|previous|this) )?!t_(' . $days . ')/i', '$3 !t_$4 $1', $token_str);
 
   // Using arrays instead of appending to strings in case we need to do more with the values
   $datetime_arr = array();
